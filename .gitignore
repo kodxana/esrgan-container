@@ -1,0 +1,11 @@
+# env
+*.env
+
+# mac
+.DS_Store
+
+# idea
+.idea/
+
+# memo
+*memo*
