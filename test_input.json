@@ -1,4 +1,6 @@
 {
   "id": "LOCAL-TEST",
-  "input":{}
+  "input":{
+    "image_url": "https://pics.prcm.jp/e41fcf0801d0d/85197400/jpeg/85197400.jpeg"
+  }
 }
