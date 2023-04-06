@@ -1,7 +1,7 @@
 name: CI
 
 on:
-  pull_request:
+  push:
     branches:
       - develop
 
@@ -24,6 +24,6 @@ jobs:
         with:
           context: .
           push: true
-          tags: aki0421/esrgan-container:debug
+          tags: aki0421/esrgan-container:${{ github.sha }}
         env:
           DOCKER_BUILDKIT: 1

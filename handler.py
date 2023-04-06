@@ -3,11 +3,8 @@ from runpod.serverless.utils import rp_download, rp_upload, rp_cleanup
 from runpod.serverless.utils.rp_validator import validate
 
 import os
-import requests
-
 import cv2
 from basicsr.archs.rrdbnet_arch import RRDBNet
-
 from realesrgan import RealESRGANer
 
 INPUT_SCHEMA = {
@@ -15,68 +12,112 @@ INPUT_SCHEMA = {
         'type': str,
         'required': True
     },
+    'model': {
+        'type': str,
+        'required': False,
+        'default': 'RealESRGAN_x4plus',
+        'constraints': lambda model: model in [
+            'RealESRGAN_x4plus',
+            'RealESRNet_x4plus',
+            'RealESRGAN_x4plus_anime_6B',
+            'RealESRGAN_x2plus',
+        ]
+    },
+    'scale': {
+        'type': float,
+        'required': False,
+        'default': 4,
+        'constraints': lambda scale: 0 < scale < 16
+    },
+    'tile': {
+        'type': int,
+        'required': False,
+        'default': 0,
+    },
+    'tile_pad': {
+        'type': int,
+        'required': False,
+        'default': 10,
+    },
+    'pre_pad': {
+        'type': int,
+        'required': False,
+        'default': 0,
+    },
 }
 
 
+# handler handles upscale request
 def handler(job):
-    job_input = job['input']
-
-    # Input validation
-    validated_input = validate(job_input, INPUT_SCHEMA)
-
-    if 'errors' in validated_input:
-        return {"error": validated_input['errors']}
-    validated_input = validated_input['validated_input']
-
-    model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
-    netscale = 4
-    outscale = 4
-    model_path = "weights/RealESRGAN_x4plus.pth"
-
-    upsampler = RealESRGANer(
-        scale=netscale,
-        model_path=model_path,
-        dni_weight=None,
-        model=model,
-        tile=0,
-        tile_pad=10,
-        pre_pad=0,
-        half=False,
-        gpu_id=None)
-
-    # Download input objects
-    image_file_path = rp_download.download_input_objects(
-        [validated_input.get('image_url', None)]
-    )  # pylint: disable=unbalanced-tuple-unpacking
-    image = image_file_path[0]
-
-    imgname, extension = os.path.splitext(os.path.basename(image))
-    img = cv2.imread(image, cv2.IMREAD_UNCHANGED)
-    if len(img.shape) == 3 and img.shape[2] == 4:
-        img_mode = 'RGBA'
-    else:
-        img_mode = None
-
-
-    image_url = ""
     try:
-        output, _ = upsampler.enhance(img, outscale=outscale)
-    except RuntimeError as error:
-        print('Error', error)
-        print('If you encounter CUDA out of memory, try to set --tile with a smaller number.')
-    else:
-        extension = extension[1:]
-        if img_mode == 'RGBA':  # RGBA images should be saved in png format
-            extension = 'png'
-        save_path = os.path.join("", f'{imgname}.{extension}')
+        # get input
+        job_input = job['input']
+        # validate input
+        validated_input = validate(job_input, INPUT_SCHEMA)
+        if 'errors' in validated_input:
+            raise validated_input['errors']
 
-        cv2.imwrite(save_path, output)
+        validated_input = validated_input['validated_input']
 
-        image_url = rp_upload.upload_image(job['id'], save_path)
+        # Download input objects
+        remote_file = rp_download.file(validated_input.get('image_url', None))
+        image_path = remote_file["file_path"]
 
-    return image_url
+        # check model
+        if validated_input["model"] == 'RealESRGAN_x4plus':
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+            netscale = 4
+        elif validated_input["model"] == 'RealESRNet_x4plus':
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+            netscale = 4
+        elif validated_input["model"] == 'RealESRGAN_x4plus_anime_6B':
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+            netscale = 4
+        elif validated_input["model"] == 'RealESRGAN_x2plus':
+            model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
+            netscale = 2
+        else:
+            raise "model not found"
+
+        upsampler = RealESRGANer(
+            scale=netscale,
+            model_path=f'weights/{validated_input["model"]}.pth',
+            dni_weight=None,
+            model=model,
+            tile=validated_input['tile'],
+            tile_pad=validated_input['tile_pad'],
+            pre_pad=validated_input['pre_pad'],
+            half=False,
+            gpu_id=None)
+
+        imgname, extension = os.path.splitext(os.path.basename(image_path))
+        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+        if len(img.shape) == 3 and img.shape[2] == 4:
+            img_mode = 'RGBA'
+        else:
+            img_mode = None
+
+        image_url = ""
+        try:
+            output, _ = upsampler.enhance(img, outscale=validated_input["scale"])
+        except RuntimeError:
+            raise "runtime error"
+        else:
+            extension = extension[1:]
+            if img_mode == 'RGBA':
+                extension = 'png'
+            save_path = os.path.join("", f'{imgname}.{extension}')
+
+            cv2.imwrite(save_path, output)
+
+            image_url = rp_upload.upload_image(job['id'], save_path)
+
+        return image_url
+    except Exception as e:
+        return {"error": e}
 
 
+# start pod
 runpod.serverless.start({
     "handler": handler
 })
