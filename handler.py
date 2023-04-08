@@ -79,43 +79,43 @@ def handler(job):
         else:
             raise "model not found"
 
-        upsampler = RealESRGANer(
-            scale=netscale,
-            model_path=f'weights/{validated_input["model"]}.pth',
-            dni_weight=None,
-            model=model,
-            tile=validated_input['tile'],
-            tile_pad=validated_input['tile_pad'],
-            pre_pad=validated_input['pre_pad'],
-            half=False,
-            gpu_id=None)
-
-        imgname, extension = os.path.splitext(os.path.basename(image_path))
-        img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-        if len(img.shape) == 3 and img.shape[2] == 4:
-            img_mode = 'RGBA'
-        else:
-            img_mode = None
-
-        image_url = ""
-        try:
-            output, _ = upsampler.enhance(img, outscale=validated_input["scale"])
-        except RuntimeError:
-            raise "runtime error"
-        else:
-            extension = extension[1:]
-            if img_mode == 'RGBA':
-                extension = 'png'
-            save_path = os.path.join("", f'{imgname}.{extension}')
-
-            cv2.imwrite(save_path, output)
-
-            image_url = rp_upload.upload_image(job['id'], save_path)
-
-        return image_url
     except Exception as e:
         return {"error": e}
 
+    upsampler = RealESRGANer(
+        scale=netscale,
+        model_path=f'weights/{validated_input["model"]}.pth',
+        dni_weight=None,
+        model=model,
+        tile=validated_input['tile'],
+        tile_pad=validated_input['tile_pad'],
+        pre_pad=validated_input['pre_pad'],
+        half=False,
+        gpu_id=None)
+
+    imgname, extension = os.path.splitext(os.path.basename(image_path))
+    img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+    if len(img.shape) == 3 and img.shape[2] == 4:
+        img_mode = 'RGBA'
+    else:
+        img_mode = None
+
+    image_url = ""
+    try:
+        output, _ = upsampler.enhance(img, outscale=validated_input["scale"])
+    except RuntimeError:
+        raise "runtime error"
+    else:
+        extension = extension[1:]
+        if img_mode == 'RGBA':
+            extension = 'png'
+        save_path = os.path.join("", f'{imgname}.{extension}')
+
+        cv2.imwrite(save_path, output)
+
+        image_url = rp_upload.upload_image(job['id'], save_path)
+
+    return image_url
 
 # start pod
 runpod.serverless.start({

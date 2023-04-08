@@ -1,59 +1,53 @@
-# create setup container
-FROM nvidia/cuda:11.6.1-cudnn8-devel-ubuntu18.04 AS setup
+FROM nvidia/cuda:11.6.2-cudnn8-runtime-ubuntu20.04 as builder
 
-# update
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONBUFFERED 1
 ENV DEBIAN_FRONTEND noninteractive
+
+# install packages
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends
-RUN apt-get install -y git
-COPY --from=ghcr.io/tarampampam/curl:8.0.1 /bin/curl /bin/curl
+    apt-get install -y --no-install-recommends \
+    wget \
+    python3 \
+    python3-pip && \
+    rm -rf /var/lib/apt/lists/*
 
-# setup python3.8
-RUN apt-get install -y python3.8 python3.8-distutils python3.8-dev python3.8-venv python3-pip
+WORKDIR /
 
-# create venv
-RUN python3.8 -m venv /venv
-ENV PATH=/venv/bin:$PATH
-
-# clone Real-ESRGAN
-RUN git clone https://github.com/xinntao/Real-ESRGAN.git /usr/src/app
-WORKDIR /usr/src/app
-
-# setup python packages
-RUN python3.8 -m pip install --upgrade pip==23.0.1
-RUN python3.8 -m pip --no-cache-dir install torch==1.13.1 --extra-index-url=https://download.pytorch.org/whl/cu116
-RUN python3.8 -m pip install runpod==0.9.1
-RUN python3.8 -m pip install Cython
-RUN python3.8 -m pip install basicsr
-RUN python3.8 -m pip install facexlib
-RUN python3.8 -m pip install gfpgan
-RUN python3.8 -m pip install -r requirements.txt
-RUN python3.8 setup.py develop
+# install python packages
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /wheels runpod basicsr realesrgan
 
 # download models
-RUN curl -L -O --create-dirs --output-dir weights https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth
-RUN curl -L -O --create-dirs --output-dir weights https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth
-RUN curl -L -O --create-dirs --output-dir weights https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth
-RUN curl -L -O --create-dirs --output-dir weights https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth
+RUN wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth -P weights
+RUN wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth -P weights
+RUN wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth -P weights
+RUN wget https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth -P weights
 
-# create runtime container
-FROM nvidia/cuda:11.6.1-cudnn8-runtime-ubuntu18.04
+FROM nvidia/cuda:11.6.2-cudnn8-runtime-ubuntu20.04
 
-# update
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONBUFFERED 1
 ENV DEBIAN_FRONTEND noninteractive
+
+# install packages
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends
-RUN apt-get install -y python3.8 libglib2.0-0 libgl1-mesa-dev
+    apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    libgl1-mesa-glx \
+    libglib2.0-0 && \
+    rm -rf /var/lib/apt/lists/*
 
-# setup venv
-ENV PATH=/venv/bin:$PATH
-COPY --from=setup /venv /venv
+WORKDIR /app
 
-# copy Real-ESRGAN
-COPY --from=setup /usr/src/app /usr/src/app
-WORKDIR /usr/src/app
+# install python packages
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache /wheels/*
 
-ADD handler.py .
-ADD test_input.json .
+# copy models
+COPY --from=builder /weights /app/weights
 
-CMD [ "python3.8", "-u", "handler.py" ]
+COPY . .
+
+CMD [ "python3", "-u", "handler.py" ]
