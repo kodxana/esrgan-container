@@ -22,7 +22,7 @@ The function accepts the following input parameters:
     - `RealESRGAN_x4plus_anime_6B`
     - `RealESRGAN_x2plus`
     Default is `RealESRGAN_x4plus`.
-- `scale` (optional, float): The scale factor for upscaling. Must be between 0 and 16. Default is 4.
+- `scale` (optional, float): The scale factor for upscaling. Must be between 0 and 4. Default is 4.
 - `tile` (optional, int): The tile size for the upscaling process. Default is 0 (no tiling).
 - `tile_pad` (optional, int): The padding size for the tiles. Default is 10.
 - `pre_pad` (optional, int): The padding size before upscaling. Default is 0.
