@@ -5,29 +5,13 @@ from runpod.serverless.utils.rp_validator import validate
 import os
 import cv2
 import zipfile
-import boto3
-from botocore.client import Config
 from basicsr.archs.rrdbnet_arch import RRDBNet
 from realesrgan import RealESRGANer
 from dotenv import load_dotenv
-import datetime
-import shutil
 import uuid
-from urllib.parse import urlparse, unquote
 import tempfile
 
 load_dotenv()
-
-AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
-S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME')
-S3_ENDPOINT_URL = os.environ.get('S3_ENDPOINT_URL')
-
-s3 = boto3.client('s3',
-                  endpoint_url=S3_ENDPOINT_URL,
-                  aws_access_key_id=AWS_ACCESS_KEY_ID,
-                  aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-                  config=Config(signature_version='s3v4'))
 
 INPUT_SCHEMA = {
     'data_url': {
@@ -108,16 +92,15 @@ def process_image(upsampler, validated_input, image_path, job_id):
 def handler(job):
     job_input = job['input']
     validated_input = validate(job_input, INPUT_SCHEMA)
-    output_type = validated_input['validated_input'].get('output_type', 'individual')  # Updated
+    output_type = validated_input['validated_input'].get('output_type', 'individual')
 
     if 'errors' in validated_input:
-        raise validated_input['errors']
+        return {"errors": validated_input['errors']}
 
     validated_input = validated_input['validated_input']
     remote_file = rp_download.file(validated_input.get('data_url', None))
     data_path = remote_file["file_path"]
     job_id = job['id']
-    today = datetime.datetime.now().strftime('%m-%d')
 
     # Create a temporary directory
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -161,30 +144,22 @@ def handler(job):
         result_paths_and_keys.append(process_image(upsampler, validated_input, data_path, job_id))
 
 
-    if output_type == 'zip':
-        zip_filename = f"{job_id}_output.zip"
-        with zipfile.ZipFile(zip_filename, 'w') as zipf:
-            for local_path, s3_key in result_paths_and_keys:
-                zipf.write(local_path)
-                os.remove(local_path)
-        s3.upload_file(zip_filename, S3_BUCKET_NAME, f"{today}/{job_id}/{zip_filename}")
-        os.remove(zip_filename)
+if output_type == 'zip':
+    zip_filename = f"{job_id}_output.zip"
+    with zipfile.ZipFile(zip_filename, 'w') as zipf:
+        for local_path, _ in result_paths_and_keys:
+            zipf.write(local_path)
+            os.remove(local_path)
+    s3_key = f"{zip_filename}"
+    presigned_url = rp_upload(zip_filename, s3_key)
+    os.remove(zip_filename)
 
-        presigned_url = s3.generate_presigned_url(
-            ClientMethod='get_object',
-            Params={'Bucket': S3_BUCKET_NAME, 'Key': f"{today}/{job_id}/{zip_filename}"},
-            ExpiresIn=86400
-        )
-        presigned_urls = [presigned_url]
-    else:
-        presigned_urls = []
-        for _, s3_key in result_paths_and_keys:
-            presigned_url = s3.generate_presigned_url(
-                ClientMethod='get_object',
-                Params={'Bucket': S3_BUCKET_NAME, 'Key': s3_key},
-                ExpiresIn=86400
-            )
-            presigned_urls.append(presigned_url)
+    presigned_urls = [presigned_url]
+else:
+    presigned_urls = []
+    for _, s3_key in result_paths_and_keys:
+        presigned_url = rp_upload.generate_presigned_url(s3_key)
+        presigned_urls.append(presigned_url)
 
     return presigned_urls
 
