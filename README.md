@@ -6,10 +6,10 @@ This serverless function deploys a RealESRGAN model that can upscale images usin
 
 To deploy this function, you need to provide the following environment variables:
 
-- `AWS_ACCESS_KEY_ID`: Your AWS Access Key ID for accessing your S3 storage.
-- `AWS_SECRET_ACCESS_KEY`: Your AWS Secret Access Key for accessing your S3 storage.
+- `BUCKET_ACCESS_KEY_ID`: Your storage Access Key ID for accessing your S3 storage.
+- `BUCKET_SECRET_ACCESS_KEY`: Your storage Secret Access Key for accessing your S3 storage.
 - `S3_BUCKET_NAME`: The name of the S3 bucket where the results will be stored.
-- `S3_ENDPOINT_URL`: The endpoint URL of your S3 storage.
+- `BUCKET_ENDPOINT_URL`: The endpoint URL of your S3 storage.
 
 ## Input Parameters
 
