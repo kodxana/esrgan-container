@@ -147,7 +147,7 @@ def handler(job):
             for local_path in result_paths:
                 zipf.write(local_path)
                 os.remove(local_path)
-        presigned_url = upload_file_to_bucket(zip_filename)
+        presigned_url = upload_file_to_bucket(zip_filename, zip_filename)
         os.remove(zip_filename)
 
         presigned_urls = [presigned_url]
