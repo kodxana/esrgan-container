@@ -1,5 +1,6 @@
 import runpod
-from runpod.serverless.utils import rp_download, rp_upload, rp_cleanup
+from runpod.serverless.utils import rp_download, rp_cleanup
+from runpod.serverless.utils.rp_upload import files, upload_file_to_bucket
 from runpod.serverless.utils.rp_validator import validate
 
 import os
@@ -146,15 +147,15 @@ def handler(job):
             for local_path in result_paths:
                 zipf.write(local_path)
                 os.remove(local_path)
-        presigned_url = rp_upload(zip_filename)
+        presigned_url = upload_file_to_bucket(zip_filename)
         os.remove(zip_filename)
 
         presigned_urls = [presigned_url]
     else:
         presigned_urls = []
         for local_path in result_paths:
-            presigned_url = rp_upload(local_path)
-            presigned_urls.append(presigned_url)
+            image_urls = files(job['id'], [local_path])
+            presigned_urls.extend(image_urls)
 
     return presigned_urls
 
