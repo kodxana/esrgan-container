@@ -144,22 +144,22 @@ def handler(job):
         result_paths_and_keys.append(process_image(upsampler, validated_input, data_path, job_id))
 
 
-if output_type == 'zip':
-    zip_filename = f"{job_id}_output.zip"
-    with zipfile.ZipFile(zip_filename, 'w') as zipf:
-        for local_path, _ in result_paths_and_keys:
-            zipf.write(local_path)
-            os.remove(local_path)
-    s3_key = f"{zip_filename}"
-    presigned_url = rp_upload(zip_filename, s3_key)
-    os.remove(zip_filename)
+    if output_type == 'zip':
+        zip_filename = f"{job_id}_output.zip"
+        with zipfile.ZipFile(zip_filename, 'w') as zipf:
+            for local_path, _ in result_paths_and_keys:
+                zipf.write(local_path)
+                os.remove(local_path)
+        s3_key = f"{zip_filename}"
+        presigned_url = rp_upload(zip_filename, s3_key)
+        os.remove(zip_filename)
 
-    presigned_urls = [presigned_url]
-else:
-    presigned_urls = []
-    for _, s3_key in result_paths_and_keys:
-        presigned_url = rp_upload.generate_presigned_url(s3_key)
-        presigned_urls.append(presigned_url)
+        presigned_urls = [presigned_url]
+    else:
+        presigned_urls = []
+        for _, s3_key in result_paths_and_keys:
+            presigned_url = rp_upload.generate_presigned_url(s3_key)
+            presigned_urls.append(presigned_url)
 
     return presigned_urls
 
