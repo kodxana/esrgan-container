@@ -76,18 +76,14 @@ def process_image(upsampler, validated_input, image_path, job_id):
     if img_mode == 'RGBA':
         extension = 'png'
 
-    today = datetime.datetime.now().strftime('%m-%d')
     save_path = os.path.join("upscaled", f'{imgname}.{extension}')
-    s3_key = f"{today}/{job_id}/{imgname}.{extension}"
 
     if not os.path.exists("upscaled"):
         os.makedirs("upscaled")
 
     cv2.imwrite(save_path, output)
-    if validated_input['output_type'] != 'zip':
-        s3.upload_file(save_path, S3_BUCKET_NAME, s3_key)
 
-    return save_path, s3_key
+    return save_path
 
 def handler(job):
     job_input = job['input']
@@ -147,18 +143,17 @@ def handler(job):
     if output_type == 'zip':
         zip_filename = f"{job_id}_output.zip"
         with zipfile.ZipFile(zip_filename, 'w') as zipf:
-            for local_path, _ in result_paths_and_keys:
+            for local_path in result_paths:
                 zipf.write(local_path)
                 os.remove(local_path)
-        s3_key = f"{zip_filename}"
-        presigned_url = rp_upload(zip_filename, s3_key)
+        presigned_url = rp_upload(zip_filename)
         os.remove(zip_filename)
 
         presigned_urls = [presigned_url]
     else:
         presigned_urls = []
-        for _, s3_key in result_paths_and_keys:
-            presigned_url = rp_upload.generate_presigned_url(s3_key)
+        for local_path in result_paths:
+            presigned_url = rp_upload(local_path)
             presigned_urls.append(presigned_url)
 
     return presigned_urls
