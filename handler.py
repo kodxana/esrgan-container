@@ -127,17 +127,17 @@ def handler(job):
         half=False,
         gpu_id=None)
 
-    result_paths_and_keys = []
+    result_paths = []
     if zipfile.is_zipfile(data_path):
         with zipfile.ZipFile(data_path, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
 
         for file in os.listdir(temp_dir):
             if not file.startswith("__MACOSX") and is_image_file(file):
-                result_paths_and_keys.append(process_image(upsampler, validated_input, os.path.join(temp_dir, file), job_id))
+                result_paths.append(process_image(upsampler, validated_input, os.path.join(temp_dir, file), job_id))
                 os.remove(os.path.join(temp_dir, file))
     else:
-        result_paths_and_keys.append(process_image(upsampler, validated_input, data_path, job_id))
+        result_paths.append(process_image(upsampler, validated_input, data_path, job_id))
 
 
     if output_type == 'zip':
